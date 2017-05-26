@@ -1,0 +1,40 @@
+Splinectomy statistical analysis tools
+=======
+Tools for messy longitudinal data analysis in R
+
+## Installation
+Clone the git repo, then add the bin directory to your path for easiest execution. Or, run the scripts from the bin folder by typing
+```
+Rscript [path_to_repo]/bin/script.R [arguments]
+```
+### Dependencies
+These scripts have been developed and tested in R version 3.3.1. Currently, the following R packages are required (future versions will reduce the number of large dependencies):
+```
+# permusplinectomy.R
+dplyr
+optparse
+# sliding_spline_test.R
+dplyr
+ggplot2
+reshape2
+cowplot
+optparse
+```
+## How to use
+### permusplinectomy.R
+Given a longitudinal dataset, permusplinectomy reports a p-value for a binary categorical variable (e.g. Healthy vs Disease). It is robust to differing number and frequency of sampling between individuals ("units" in the code), and allows the user to alter key parameters controlling the stringency of the pre-test filtering. The input dataset should be a tab-delimited file in long format and have a column for the patient/individual ID, the independent and response variables (e.g. time and continuous measured variable), and the categorical variable. Before running, ensure there are no missing values in the measured variable or the categorical variable columns.
+
+The p-value is calculated by permutation of the categorical label across the individuals, and non-parametrically measuring the likelihood of the true area between the categories being a result of random chance.
+```
+# Sample run command
+permusplinectomy.R -i data_table.txt -x Years -y Blood_glucose -c Disease_status -p PATIENT_ID --perms 999
+# To see usage and all commandline options
+permusplinectomy.R --help
+
+### sliding_spline_test.R
+Given the same dataset, the sliding_spline_test treats each individual separately, effectively converting their time series into a dense time series through extrapolation of a spline. Each interval (default = 100) is then tested for non-parametric significance between the two groups, provided there are enough data points (default = 3+ per group). The script produces three output files: a plot (png) of the splines for each individual, a plot of the p-values over the independent (x) variable where the size of the line and points is scaled by the number of data points contributing to that test (thicker line = greater n at that x), and a table of p-value at each interval. The user may provide a file prefix for each of these files, which are saved in the current working directory.
+```
+# Sample run command
+sliding_spline_test.R -i data_table.txt -x Years -y Blood_glucose -c Disease_status -p PATIENT_ID --spline_intervals=200 --prefix=Foo_
+# To see usage and all command line options
+sliding_spline_test.R --help
