@@ -1,6 +1,6 @@
-Splinectomy statistical analysis tools
+Splinectomy: A small suite of statistical analysis tools
 =======
-Tools for messy longitudinal data analysis in R
+Tools for messy longitudinal data analysis in R, using splines and non-parametric comparisons
 
 ## Installation
 Clone the git repo, then add the bin directory to your path for easiest execution. Or, run the scripts from the bin folder by typing
@@ -30,7 +30,7 @@ The p-value is calculated by permutation of the categorical label across the ind
 permusplinectomy.R -i data_table.txt -x Years -y Blood_glucose -c Disease_status -p PATIENT_ID --perms 999
 # To see usage and all commandline options
 permusplinectomy.R --help
-
+```
 ### sliding_spline_test.R
 Given the same dataset, the sliding_spline_test treats each individual separately, effectively converting their time series into a dense time series through extrapolation of a spline. Each interval (default = 100) is then tested for non-parametric significance between the two groups, provided there are enough data points (default = 3+ per group). The script produces three output files: a plot (png) of the splines for each individual, a plot of the p-values over the independent (x) variable where the size of the line and points is scaled by the number of data points contributing to that test (thicker line = greater n at that x), and a table of p-value at each interval. The user may provide a file prefix for each of these files, which are saved in the current working directory.
 ```
@@ -38,3 +38,4 @@ Given the same dataset, the sliding_spline_test treats each individual separatel
 sliding_spline_test.R -i data_table.txt -x Years -y Blood_glucose -c Disease_status -p PATIENT_ID --spline_intervals=200 --prefix=Foo_
 # To see usage and all command line options
 sliding_spline_test.R --help
+```
