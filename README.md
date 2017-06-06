@@ -51,10 +51,10 @@ A good practice set is the `ChickWeight` dataset in R's datasets package. To exp
 ```
 Try it out! A few examples to get you started:
 ```
-# Compare diets 1 and 2 overall:
-
+# Compare diets 1 and 2 overall (99 permutations for faster run):
+permusplinectomy.R -i ChickWeight.txt -p Chick -c Diet -x Time -y weight --perms=99 --plot=chicks_1v2.png --groups=1,2
 # Should return a non-significant pvalue. But the separation isn't consistent across the time series... Try a sliding spline:
-
+sliding_spline_test.R -i ChickWeight.txt -p Chick -c Diet -x Time -y weight --groups=1,2 --prefix=chicks_1vs2_
 # Look at the pvalues plot...
 # Cool! So, this suggests that the diets may lead to significantly different 
 # chick weights at early timepoints, but this difference is not maintained 
