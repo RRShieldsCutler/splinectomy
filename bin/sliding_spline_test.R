@@ -25,6 +25,9 @@ option_list = list(
   make_option(c('-c', '--category'),
               help='REQUIRED: Categorical variable of interest; must be a column header in table',
               default=NA, type = 'character'),
+  make_option(c('--groups'),
+              help='If >2 groups in category, the two of interest: comma-delimited (e.g. groups=Healthy,Sick)',
+              default=NA, type = 'character'),
   make_option(c('-x', '--x_variable'),
               help='REQUIRED: The independent variable (e.g. time); must be column header',
               default=NA, type = 'character'),
@@ -44,8 +47,8 @@ option_list = list(
               help='Data points required for each sliding spline position to test [default %default]',
               default=3, type = 'integer'),
   make_option(c('--n_per_unit'),
-              help='Data points required per unit (e.g. patient) to keep in dataset [default %default]',
-              default=3, type = 'integer'),
+              help='Data points required per unit (must be > 3) to keep in dataset [default %default]',
+              default=4, type = 'integer'),
   make_option(c('--prefix'),
               help='Prefix for results files',
               default='', type = 'character')
@@ -55,17 +58,18 @@ opt = parse_args(OptionParser(usage=usage, option_list=option_list))
 # Parse command line
 infile = opt$input  # tsv file with data in long form
 category = as.character(opt$category)  # the column header label for the two groups
+groups = opt$groups  # the two groups of interest, if column has >2
 x.cat = opt$x_variable  # the time series label
 y.cat = opt$y_variable  # the response variable label
 unit.id = opt$unit_id  # the header label defining the individuals (patients, etc)
-num.bits = as.numeric(opt$spline_points)  # default 100
+num.bits = as.numeric(opt$spline_intervals)  # default 100
 sparsity = as.numeric(opt$density)  # cutoff for number of points at given time; default 3 (>= 3)
 unit_number = as.numeric(opt$n_per_unit)  # min number of points needed per individual
 spar.param = opt$spar  # default NULL
 prefix = opt$prefix
 
 ## DEBUGGING TEST PARAMETERS
-# setwd('~/Box Sync/knights_box/bile_vsg/data/')
+# setwd('~/Box\ Sync/knights_box/bile_vsg/data/')
 # infile = 'pre_surg_vitals_relweight_response.txt'  # tsv file with data in long form
 # category = as.character('response')  # the column header label for the two groups
 # x.cat = 'YEARS_REL_TO_SURG'  # the time series label
@@ -74,22 +78,47 @@ prefix = opt$prefix
 # num.bits = as.numeric(100)  # default 100
 # sparsity = as.numeric(4)
 
+## DEBUGGING TEST PARAMETERS for IBS
+# setwd('~/Box\ Sync/knights_box/ibs/run2/diet')
+# infile = 'ForRobin_IBS_spline_test2.txt'  # tsv file with data in long form
+# category = as.character('Cohort')  # the column header label for the two groups
+# x.cat = 'Timepoint'  # the time series label
+# y.cat = 'L1_Milk_and_Milk_Products'  # the response variable label
+# unit.id = 'study_id'  # the header label defining the individuals (patients, etc)
+# num.bits = as.numeric(100)  # default 100
+# sparsity = as.numeric(4)
+# spar.param = NULL
+# unit_number = 4
+# groups = 'H,D'
+
 cat(paste('Running sliding spline test with', num.bits,
           'time points extrapolated from splines...\n'))
 
 # Read infile and limit to ids matching sparsity parameter
 df = read.delim(file = infile, header = 1, check.names = F, sep = '\t')
+
+if (is.na(groups)) {
+  if (length(unique(df[, category])) > 2) {
+    stop('More than two groups in category column. Define groups with "--groups=Name1,Name2"')
+  }
+  v1 = unique(df[, category])[1]
+  v2 = unique(df[, category])[2]
+} else {
+  v1 = strsplit(groups, ',')[[1]][1]
+  v2 = strsplit(groups, ',')[[1]][2]
+}
+
+# Make sure the df only contains data from categories tested
+cat.vars = c(v1,v2)
+df = df[df[, category] %in% cat.vars, ]
 unit.ids.tab = data.frame(table(df[, unit.id]))
 unit.ids.notsparse = unit.ids.tab[unit.ids.tab$Freq >= unit_number, ]
 unit.ids.keep = as.character(unit.ids.notsparse$Var1)
 df = df[df[, unit.id] %in% unit.ids.keep, ]
 
-v1 = unique(df[, category])[1]
-v2 = unique(df[, category])[2]
-
 # Get the range of the independent variable (e.g. time) to set spline limits
-x.min = min(df[, x.cat])
-x.max = max(df[, x.cat])
+x.min = as.numeric(min(df[, x.cat]))
+x.max = as.numeric(max(df[, x.cat]))
 xx = seq(x.min, x.max, by = ((x.max - x.min) / (num.bits - 1)))
 spl.table = setNames(data.frame(xx), c('x'))
 
@@ -102,7 +131,7 @@ for (i in unit.ids.keep) {
   unit.df = subset(df, df[, unit.id]==i)
   unit.spl = with(unit.df,
                   smooth.spline(x=unit.df[, x.cat], y=unit.df[, y.cat],
-                  spar = spar.param))
+                  spar = spar.param, tol = 1e-4))
   xx.i = subset(xx, xx >= min(unit.spl$x) & xx <= max(unit.spl$x))
   unit.spl.f = data.frame(predict(unit.spl, xx.i))
   colnames(unit.spl.f) = c('x', i)
@@ -115,12 +144,15 @@ spl.table.p = as.data.frame(t(spl.table.p))
 spl.table.p = tibble::rownames_to_column(spl.table.p, var = unit.id)
 spl.table.p = merge(spl.table.p, df.groups, by = unit.id, all = T)
 
+n = xx[3]
+spline.table = spl.table.p
 # Define the non-parametric test function
 mann_whitney_per_bit = function(spline.table, n) {
   n = as.character(n)
   x.pick = c(unit.id, n, category)
   x.table = spline.table[, x.pick]
   x.table = x.table[!is.na(x.table[, n]), ]
+  x.table = droplevels(x.table)
   cat.freq = data.frame(table(x.table[, category]))
   if (cat.freq$Freq[1] >= sparsity & cat.freq$Freq[2] >= sparsity) {
     mw = wilcox.test(x.table[, n] ~ x.table[, category])
@@ -150,7 +182,7 @@ plot.spline.data = melt(data = spl.table, id.vars = 'x')
 colnames(plot.spline.data) = c('x', unit.id, 'value')
 plot.spline.data = merge(plot.spline.data, df.groups, by = unit.id, all = T)
 colnames(plot.spline.data) = c('UNIT', 'x', 'value', 'category')
-p = ggplot(plot.spline.data, aes(x=x, y=value, group=UNIT, color=category)) +
+p = ggplot(plot.spline.data, aes(x=x, y=value, group=UNIT, color=as.character(category))) +
   geom_line(na.rm = T) + scale_color_manual(name=category,
   values = c("#0072B2","#D55E00")) +
   xlab(x.cat) + ylab(y.cat) +
@@ -162,11 +194,17 @@ ggsave(paste(prefix, 'spline_plot_result.png', sep = ''), height = 3.5, width = 
 # Scale the size of the line and points according to the number of observations
 norm.range = function(x){(x-min(x)) / (max(x)-min(x))}
 pval.df$N.norm = norm.range(pval.df$N)
-p = ggplot(pval.df, aes(x=x.series, y=p.value, size=N.norm)) + geom_line() +
-  geom_point(shape = 20) +
-  geom_hline(aes(yintercept = 0.05), linetype='dashed') +
-  xlab(x.cat) + ylab('Mann-Whitney p-value') +
-  theme(legend.position='none') + ylim(0,1)
+pval.df$logpval = -log10(pval.df$p.value)
+if (max(pval.df$logpval) < 1.5) {
+  maxp = 1.5
+  } else {
+    maxp = max(pval.df$logpval)
+  }
+p = ggplot(pval.df, aes(x=x.series, y=logpval)) + geom_line() +
+  geom_point(shape = 20, size = (pval.df$N.norm * 2))  +
+  geom_hline(aes(yintercept = 1.301), linetype='dashed') +
+  xlab(x.cat) + ylab('-log10 of Mann-Whitney p-value') +
+  theme(legend.position='none') + ylim(0,maxp)
 # p
 ggsave(paste(prefix, 'spline_evaluated_pvalues.png', sep = ''),
        height = 3.5, width = 4, units = 'in', dpi = 600)

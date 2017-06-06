@@ -2,6 +2,7 @@
 
 suppressPackageStartupMessages(require(dplyr))
 suppressPackageStartupMessages(require(optparse))
+suppressPackageStartupMessages(require(ggplot2))
 
 usage = '\nPermutation test to determine whether two groups are significantly
 different across longitudinal data that may have differing patterns
@@ -16,6 +17,9 @@ option_list = list(
   make_option(c('-c', '--category'),
               help='REQUIRED: Categorical variable of interest; must be a column header in table',
               default=NA, type = 'character'),
+  make_option(c('--groups'),
+              help='If >2 groups in category, the two of interest: comma-delimited (e.g. groups=Healthy,Sick)',
+              default=NA, type = 'character'),
   make_option(c('-x', '--x_variable'),
               help='REQUIRED: The independent variable (e.g. time); must be column header',
               default=NA, type = 'character'),
@@ -28,12 +32,18 @@ option_list = list(
   make_option(c('--perms'),
               help='Number of permutation shuffles [default %default]',
               default=999, type = 'integer'),
+  make_option(c('--cut'),
+              help='Cut Unit IDs that occur less than this many times',
+              default=NA, type = 'character'),
   make_option(c('--intervals'),
               help='Number of sampling intervals along spline [default %default]',
               default=10000, type = 'integer'),
   make_option(c('--spar'),
               help='The spar parameter when fitting splines (0 - 1); default is calculated from data',
-              default=NULL)
+              default=NULL),
+  make_option(c('--plot'),
+              help='Plot the data too! Provide a filename/path, PNG format',
+              default=NA, type = 'character')
 )
 opt = parse_args(OptionParser(usage=usage, option_list=option_list))
 
@@ -47,19 +57,39 @@ if (is.na(opt$input) | is.na(opt$category) | is.na(opt$x_variable) |
 # Parse command line
 infile = opt$input  # tsv file with data in long form
 category = opt$category  # the column header label for the two groups
+groups = opt$groups  # the two groups of interest, if column has >2
 x.cat = opt$x_variable  # the time series label
 y.cat = opt$y_variable  # the response variable label
 unit.id = opt$unit_id  # the header label defining the individuals (patients, etc)
 num.perm = as.numeric(opt$perms)  # default 999
+cut.low = opt$cut
 spar.param = opt$spar # default NULL
 samp.intervals = opt$intervals 
+plot.results = opt$plot  # name of the plot file.png
 shuff.id = 'cat.shuff'
 
 # Read infile
 df = read.delim(file = infile, header = 1, check.names = F, sep = '\t')
-v1 = unique(df[, category])[1]
-v2 = unique(df[, category])[2]
+if (is.na(groups)) {
+  if (length(unique(df[, category])) > 2) {
+    stop('More than two groups in category column. Define groups with "--groups=Name1,Name2"')
+  }
+  v1 = unique(df[, category])[1]
+  v2 = unique(df[, category])[2]
+} else {
+  v1 = strsplit(groups, ',')[[1]][1]
+  v2 = strsplit(groups, ',')[[1]][2]
+  }
 
+if (!is.na(cut.low)) {
+  cut_low = as.numeric(cut.low)
+  keep.ids = data.frame(table(df[, unit.id]))
+  keep.ids = as.character(keep.ids[keep.ids$Freq > cut.low, ]$Var1)
+  df = df[df[,unit.id] %in% keep.ids, ]
+}
+
+
+cat(paste('\nTesting between', v1, 'and', v2, 'for a difference in', y.cat, '\n'))
 cat(paste('\nScalpel please: performing permusplinectomy with', num.perm, 'permutations...\n'))
 
 # The experimentally reported response
@@ -118,3 +148,19 @@ pval = (sum(permuted >= as.numeric(real.area)) + 1) / (num.perm + 1)
 
 # Return the p-value
 cat(paste('\np-value =', round(pval, digits = 5), '\n\n'))
+spar.param = NULL
+if (!is.na(plot.results)) {
+  df.p = rbind(df.v1, df.v2)
+  df.pick = c(x.cat, category, y.cat)
+  plot.df = df.p[, df.pick]
+  plot.df = plot.df[!is.na(plot.df[, x.cat]), ]
+  plot.df = droplevels(plot.df)
+  p = ggplot(plot.df, aes(x=plot.df[,x.cat], y=plot.df[,y.cat], color=as.character(plot.df[,category]))) +
+    geom_point() + geom_smooth(span = spar.param) + xlab(x.cat) + ylab(y.cat) +
+    scale_color_manual(name=category, values = c("#0072B2","#D55E00"))
+  # p
+  ggsave(plot.results,
+         height = 3.5, width = 4, units = 'in', dpi = 600)
+}
+
+
