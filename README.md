@@ -3,21 +3,14 @@ Splinectomy: A small suite of statistical analysis tools
 Tools for messy longitudinal data analysis in R, using splines and non-parametric comparisons
 
 ## Installation
-Clone the git repo, then add the bin directory to your path for easiest execution. Or, run the scripts from the bin folder by typing
-```
-[path_to_repo]/bin/script.R [arguments]
-```
-If the message `Permission denied` is returned in error, ensure that the scripts are executable as follows (from the `bin` directory):
-```
-chmod +x permusplinectomy.R
-chmod +x sliding_spline_test.R
-```
+Clone the git repo, then add the bin directory to your path for easiest execution. Or, run the scripts directly from the `bin` directory.
 ### Dependencies
 These scripts have been developed and tested in R version 3.3.1. Currently, the following R packages are required (future versions will reduce the number of large dependencies):
 ```
 # permusplinectomy.R
 dplyr
 optparse
+
 # sliding_spline_test.R
 dplyr
 ggplot2
@@ -33,6 +26,7 @@ The p-value is calculated by permutation of the categorical label across the ind
 ```
 # Sample run command
 permusplinectomy.R -i data_table.txt -x Years -y Blood_glucose -c Disease_status -p PATIENT_ID --perms 999
+
 # To see usage and all commandline options
 permusplinectomy.R --help
 ```
