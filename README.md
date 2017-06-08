@@ -5,7 +5,7 @@ Tools for messy longitudinal data analysis in R, using splines and non-parametri
 ## Installation
 Clone the git repo, then add the bin directory to your path for easiest execution. Or, run the scripts directly from the `bin` directory.
 ### Dependencies
-These scripts have been developed and tested in R version 3.3.1. Currently, the following R packages are required (future versions will reduce the number of large dependencies):
+These scripts have been developed and tested in R version 3.3.1 on Mac OSX. Currently, the following R packages are required (future versions will reduce the number of large dependencies):
 ```
 # permusplinectomy.R
 dplyr
