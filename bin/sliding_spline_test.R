@@ -194,17 +194,18 @@ ggsave(paste(prefix, 'spline_plot_result.png', sep = ''), height = 3.5, width = 
 # Scale the size of the line and points according to the number of observations
 norm.range = function(x){(x-min(x)) / (max(x)-min(x))}
 pval.df$N.norm = norm.range(pval.df$N)
-pval.df$logpval = -log10(pval.df$p.value)
-if (max(pval.df$logpval) < 1.5) {
-  maxp = 1.5
-  } else {
-    maxp = max(pval.df$logpval)
-  }
-p = ggplot(pval.df, aes(x=x.series, y=logpval)) + geom_line() +
+# pval.df$logpval = -log10(pval.df$p.value)
+# if (max(pval.df$logpval) < 1.5) {
+#   maxp = 1.5
+#   } else {
+#     maxp = max(pval.df$logpval)
+#   }
+p = ggplot(pval.df, aes(x=x.series, y=p.value)) + geom_line() +
   geom_point(shape = 20, size = (pval.df$N.norm * 2))  +
   geom_hline(aes(yintercept = 1.301), linetype='dashed') +
-  xlab(x.cat) + ylab('-log10 of Mann-Whitney p-value') +
-  theme(legend.position='none') + ylim(0,maxp)
+  xlab(x.cat) + ylab('Mann-Whitney p-value') +
+  scale_y_continuous(trans = scales::log10_trans()) +
+  theme(legend.position='none') #+ ylim(0,maxp)
 # p
 ggsave(paste(prefix, 'spline_evaluated_pvalues.png', sep = ''),
        height = 3.5, width = 4, units = 'in', dpi = 600)
