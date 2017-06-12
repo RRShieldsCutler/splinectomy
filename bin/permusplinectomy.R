@@ -3,6 +3,7 @@
 suppressPackageStartupMessages(require(dplyr))
 suppressPackageStartupMessages(require(optparse))
 suppressPackageStartupMessages(require(ggplot2))
+suppressPackageStartupMessages(require(cowplot))
 
 usage = '\nPermutation test to determine whether two groups are significantly
 different across longitudinal data that may have differing patterns
@@ -42,7 +43,7 @@ option_list = list(
               help='The spar parameter when fitting splines (0 - 1); default is calculated from data',
               default=NULL),
   make_option(c('--plot'),
-              help='Plot the data too! Provide a filename/path, PNG format',
+              help='Plot the data too! Provide a filename/path, with .png extension',
               default=NA, type = 'character')
 )
 opt = parse_args(OptionParser(usage=usage, option_list=option_list))
@@ -161,6 +162,7 @@ if (!is.na(plot.results)) {
   # p
   ggsave(plot.results,
          height = 3.5, width = 4, units = 'in', dpi = 600)
+  cat(paste('Plot saved\n'))
 }
 
 

@@ -1,4 +1,4 @@
-Splinectomy: A small suite of statistical analysis tools
+Splinectomy: A small suite of spline-based analysis tools
 =======
 Tools for messy longitudinal data analysis in R, using splines and non-parametric comparisons
 
