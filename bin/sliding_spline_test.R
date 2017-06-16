@@ -202,7 +202,7 @@ pval.df$N.norm = norm.range(pval.df$N)
 #   }
 p = ggplot(pval.df, aes(x=x.series, y=p.value)) + geom_line() +
   geom_point(shape = 20, size = (pval.df$N.norm * 2))  +
-  geom_hline(aes(yintercept = 1.301), linetype='dashed') +
+  geom_hline(aes(yintercept = 0.05), linetype='dashed') +
   xlab(x.cat) + ylab('Mann-Whitney p-value') +
   scale_y_continuous(trans = scales::log10_trans()) +
   theme(legend.position='none') #+ ylim(0,maxp)
