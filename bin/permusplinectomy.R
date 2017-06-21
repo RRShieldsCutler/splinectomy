@@ -149,7 +149,7 @@ pval = (sum(permuted >= as.numeric(real.area)) + 1) / (num.perm + 1)
 
 # Return the p-value
 cat(paste('\np-value =', round(pval, digits = 5), '\n\n'))
-spar.param = NULL
+# spar.param = NULL
 if (!is.na(plot.results)) {
   df.p = rbind(df.v1, df.v2)
   df.pick = c(x.cat, category, y.cat)
