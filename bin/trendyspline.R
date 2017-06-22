@@ -36,6 +36,9 @@ option_list = list(
   make_option(c('--cut'),
               help='Cut Unit IDs that occur less than this many times',
               default=NA, type = 'character'),
+  make_option(c('--mean_center'),
+              help='Mean center the data by individual before processing [default %default]',
+              default=FALSE),
   make_option(c('--intervals'),
               help='Number of sampling intervals along spline [default %default]',
               default=10000, type = 'integer'),
@@ -65,21 +68,22 @@ cut.low = opt$cut
 spar.param = opt$spar # default NULL
 samp.intervals = opt$intervals 
 plot.results = opt$plot  # name of the plot file.png
+mean_adj = opt$mean_center
 shuff.id = 'y_shuff'
 
 
-## DEBUGGING DATA
+# DEBUGGING DATA
 # setwd('~/Box Sync/knights_box/splinectomy/test/')
-# infile = '../test/ChickWeight.txt'  # tsv file with data in long form
-# category = 'Diet'  # the column header label for the group
-# test_grp = '1'  # the group of interest, if column has >1
-# x.cat = 'Time'  # the time series label
-# y.cat = 'weight'  # the response variable label
-# unit.id = 'Chick'  # the header label defining the individuals (patients, etc)
+# infile = '../test/imp_data/ed_L-to-D0_Unweighted_Unifrac.txt'  # tsv file with data in long form
+# category = 'cat'  # the column header label for the group
+# test_grp = 'A'  # the group of interest, if column has >1
+# x.cat = 'x'  # the time series label
+# y.cat = 'y'  # the response variable label
+# unit.id = 'group'  # the header label defining the individuals (patients, etc)
 # num.perm = as.numeric(99)  # default 999
 # cut.low = NA
 # spar.param = NULL # default NULL
-# samp.intervals = 100 
+# samp.intervals = 1000
 # plot.results = 'trendyplot_tests.png'  # name of the plot file.png
 # shuff.id = 'y_shuff'
 
@@ -112,13 +116,36 @@ df.v1 = df %>% filter(df[, category] == v1 & !is.na(df[, x.cat]))
 ### behavior of a _group_. i.e. does this group change consistently. If we
 ### measured individual splines, noisey data could produce false positives
 
+if (mean_adj == TRUE) {
+  cat(paste('\nMean centering the data...\n'))
+  all_ids <- as.character(unique(df.v1[, unit.id]))
+  grp_mean <- mean(df.v1[, y.cat])
+  mean_center <- function(case_df, grp_mean) {
+    offset <- (mean(case_df[, y.cat]) - grp_mean)
+    case_df$y_offset_adj <- (case_df[, y.cat] - offset)
+    case_df[, y.cat] <- NULL
+    names(case_df)[names(case_df) == 'y_offset_adj'] <- y.cat
+    return(case_df)
+  }
+  df.adj <- list()
+  i = 1
+  for (id in all_ids) {
+    case_df <- df.v1[df[, unit.id] == id, ]
+    case_df <- mean_center(case_df, grp_mean)
+    df.adj[[i]] <- case_df
+    i = i + 1
+  }
+  df.v1 <- do.call(rbind, df.adj)
+}
+
 ## Then spline for the group
 ## Measure distance to the mean line
 ## Within the units, shuffle the y values keeping the set of x
 ## Sig equals the fraction that are equal or greater than truth
 
 ## First determine the group mean (null hypothesis for changing over time)
-y.mean = mean(df.v1[, y.cat])
+# y.mean = mean(df.v1[, y.cat])
+# y.mean = min(df.v1[, y.cat])
 df.v1.spl = with(df.v1,
                  smooth.spline(x=df.v1[, x.cat], y=df.v1[, y.cat],
                                spar = spar.param))
@@ -128,14 +155,15 @@ xby = (x1 - x0) / (samp.intervals - 1)
 xx = seq(x0, x1, by = xby)
 v1.spl.f = data.frame(predict(df.v1.spl, xx))
 colnames(v1.spl.f) = c('x', 'var1')
+y.mean = v1.spl.f$var1[1]
 real.spl.dist = v1.spl.f
 real.spl.dist$y_mean = y.mean
-real.spl.dist$abs.distance = abs(real.spl.dist$var1 - real.spl.dist$y_mean)
-real.area = sum(real.spl.dist$abs.distance) / samp.intervals
+real.spl.dist$distance = (real.spl.dist$var1 - real.spl.dist$y_mean)
+real.area = sum(real.spl.dist$distance) / samp.intervals
 
 # Define the permutation function
-spline_permute = function(randy, unit.id, category, x.cat, y.cat) {
-  randy.meta = randy %>% select_(unit.id, x.cat, category)
+spline_permute = function(randy, unit.id, x.cat, y.cat) {
+  randy.meta = randy %>% select_(unit.id, x.cat)
   randy.meta$y_shuff = sample(randy[, y.cat])
   # randy.meta = randy.meta %>% select_(unit.id, shuff.id)
   # randy = merge(randy, randy.meta, by = unit.id, all = T)
@@ -149,9 +177,10 @@ spline_permute = function(randy, unit.id, category, x.cat, y.cat) {
   randy.v1.fit = data.frame(predict(randy.v1.spl, xx))
   colnames(randy.v1.fit) = c('x', 'var1.y')
   spl.dist = randy.v1.fit
-  spl.dist$y_mean = y.mean
-  spl.dist$abs.distance = abs(spl.dist$var1.y - spl.dist$y_mean)
-  perm.area = sum(spl.dist$abs.distance) / samp.intervals
+  p_mean = spl.dist$var1[1]
+  spl.dist$p_mean = p_mean
+  spl.dist$distance = (spl.dist$var1.y - spl.dist$p_mean)
+  perm.area = sum(spl.dist$distance) / samp.intervals
   permuted = append(permuted, perm.area)
   return(permuted)
 }
@@ -159,8 +188,8 @@ spline_permute = function(randy, unit.id, category, x.cat, y.cat) {
 # Run the permutation over desired number of iterations
 permuted = list()
 permuted = replicate(num.perm, 
-                     spline_permute(randy = df.v1, unit.id, category, x.cat, y.cat))
-pval = (sum(permuted >= as.numeric(real.area)) + 1) / (num.perm + 1)
+                     spline_permute(randy = df.v1, unit.id, x.cat, y.cat))
+pval = (sum(lapply(permuted, abs) >= abs(real.area)) + 1) / (num.perm + 1)
 
 # Return the p-value
 cat(paste('\np-value =', round(pval, digits = 5), '\n\n'))
